@@ -38,11 +38,25 @@ type replay struct {
 func NewReplay(
 	candles1mRepo repository.Candles1m,
 ) *replay {
-	return &replay{
+	s := replay{
 		candles1mRepo: candles1mRepo,
 		chMap:         map[string]streamHandler{},
 
 		chTtl: 24 * time.Hour,
+	}
+
+	go s.runStreamHandlerCleaner()
+
+	return &s
+}
+
+func (s *replay) runStreamHandlerCleaner() {
+	tic := time.NewTicker(time.Hour)
+
+	for {
+		<-tic.C
+
+		s.cleanStreamHandler()
 	}
 }
 
