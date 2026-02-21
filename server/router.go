@@ -6,9 +6,11 @@ import (
 	"michaelyusak/go-quant-replay-engine.git/handler"
 	"michaelyusak/go-quant-replay-engine.git/repository/quest"
 	"michaelyusak/go-quant-replay-engine.git/service"
+	"net/http"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	hAdaptor "github.com/michaelyusak/go-helper/adaptor"
 	hHandler "github.com/michaelyusak/go-helper/handler"
 	hMiddleware "github.com/michaelyusak/go-helper/middleware"
@@ -19,6 +21,7 @@ type routerOpts struct {
 	handler struct {
 		common *hHandler.Common
 		write  *handler.Write
+		replay *handler.Replay
 	}
 }
 
@@ -33,18 +36,30 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 
 	binanceHttpAdapter := binancehttp.NewAdapter(config.Adapter.BinanceHttp.FapiBaseUrl)
 
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
 	writeService := service.NewWrite(candles1mRepo, binanceHttpAdapter)
+	replayService := service.NewReplay(candles1mRepo)
 
 	commonHandler := hHandler.NewCommon(&APP_HEALTHY)
 	writeHandler := handler.NewWrite(writeService)
+	replayHandler := handler.NewReplay(replayService, upgrader)
 
 	return createRouter(routerOpts{
 		handler: struct {
 			common *hHandler.Common
 			write  *handler.Write
+			replay *handler.Replay
 		}{
 			common: commonHandler,
 			write:  writeHandler,
+			replay: replayHandler,
 		},
 	},
 		config.Cors.AllowedOrigins,
@@ -92,4 +107,9 @@ func staticRouting(router *gin.Engine, localStorageStaticPath, localStorageDirec
 
 func writeRouting(router *gin.Engine, handler *handler.Write) {
 	router.POST("/v1/write/binance", handler.ImportFromBinance)
+}
+
+func replayRouting(router *gin.Engine, handler *handler.Replay) {
+	router.POST("/v1/replay/create", handler.CreateStream)
+	router.GET("/v1/replay/stream", handler.StreamReplay)
 }

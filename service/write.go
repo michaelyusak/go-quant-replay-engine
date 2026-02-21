@@ -81,7 +81,6 @@ func (s *write) ImportFromBinance(ctx context.Context, req entity.ImportFromBina
 			}
 		default:
 			logrus.
-				WithError(err).
 				WithField("start", time.UnixMilli(req.StartTimeUnixMilli).String()).
 				WithField("end", time.UnixMilli(req.StartTimeUnixMilli).String()).
 				WithField("limit", req.Limit).

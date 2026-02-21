@@ -17,3 +17,9 @@ type Candle struct {
 	//internal
 	Dirty bool `json:"-"`
 }
+
+type CandleInterval string
+
+const (
+	CandleInterval1m = "1m"
+)

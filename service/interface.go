@@ -9,4 +9,7 @@ type Write interface {
 	ImportFromBinance(ctx context.Context, req entity.ImportFromBinanceReq) error
 }
 
-type Replay interface{}
+type Replay interface {
+	CreateStream(ctx context.Context, req entity.CreateStreamReq) (entity.CreateStreamRes, error)
+	StreamReplay(ctx context.Context, ch chan []byte, channel string) error
+}
