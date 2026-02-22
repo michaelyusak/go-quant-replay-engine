@@ -91,7 +91,7 @@ func (h *Replay) StreamReplay(ctx *gin.Context) {
 		authenticatedCh <- true
 		close(authenticatedCh)
 
-		err = h.replayService.StreamReplay(c, dataCh, data.Channel)
+		err = h.replayService.StreamReplay(c, dataCh, data.Channel, data.Token)
 		if err != nil {
 			logrus.
 				WithError(err).

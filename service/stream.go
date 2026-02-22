@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"michaelyusak/go-quant-replay-engine.git/common"
 	"michaelyusak/go-quant-replay-engine.git/entity"
 	"michaelyusak/go-quant-replay-engine.git/repository"
 	"net/http"
@@ -22,6 +23,7 @@ type streamHandler struct {
 	playbackSpeed float32
 	startTime     time.Time
 	endTime       time.Time
+	token         string
 
 	cleanedAt time.Time
 }
@@ -31,6 +33,8 @@ type replay struct {
 	chMap         map[string]streamHandler
 
 	chTtl time.Duration
+
+	tokenLen int
 
 	mu sync.Mutex
 }
@@ -43,6 +47,8 @@ func NewReplay(
 		chMap:         map[string]streamHandler{},
 
 		chTtl: 24 * time.Hour,
+
+		tokenLen: 20,
 	}
 
 	go s.runStreamHandlerCleaner()
@@ -127,6 +133,9 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 	channelHash := helper.HashSHA512(fmt.Sprintf("%s%s%s%v", req.Exchange, req.Symbol, req.Interval, time.Now().UnixMilli()))
 	channel := fmt.Sprintf("ch:%s", channelHash)
 
+	token := common.CreateRandomString(s.tokenLen)
+
+	s.mu.Lock()
 	s.chMap[channel] = streamHandler{
 		interval:      interval,
 		exchange:      req.Exchange,
@@ -134,9 +143,11 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 		playbackSpeed: playbackSpeed,
 		startTime:     startTime,
 		endTime:       endTime,
+		token:         token,
 
 		cleanedAt: time.Now().Add(s.chTtl),
 	}
+	s.mu.Unlock()
 
 	return entity.CreateStreamRes{
 		CandlesCount: candlesCount,
@@ -144,8 +155,27 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 	}, nil
 }
 
-func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel string) error {
-	streamHandler := s.chMap[channel]
+func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, token string) error {
+	s.mu.Lock()
+	streamHandler, ok := s.chMap[channel]
+	s.mu.Unlock()
+
+	if !ok {
+		logrus.Warn("[service][replay][StreamCandles] stream not found")
+
+		return apperror.BadRequestError(apperror.AppErrorOpt{
+			Code:    http.StatusNotFound,
+			Message: "[service][replay][StreamCandles] stream not found",
+		})
+	}
+
+	if streamHandler.token != token {
+		logrus.Warn("[service][replay][StreamCandles] invalid token")
+
+		return apperror.UnauthorizedError(apperror.AppErrorOpt{
+			Message: "[service][replay][StreamCandles] invalid token",
+		})
+	}
 
 	limit := 5000
 	var dbHandler func(cursor time.Time) ([]entity.Candle, error)
@@ -176,7 +206,12 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel strin
 
 	latency := interval / time.Duration(streamHandler.playbackSpeed)
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
 		pullCh <- true
 
 	loop:
@@ -201,6 +236,8 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel strin
 	}()
 
 	go func() {
+		defer wg.Done()
+
 		cursor := streamHandler.startTime
 
 	loop:
@@ -234,8 +271,10 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel strin
 		}
 	}()
 
+	wg.Wait()
+
 	err, ok := <-errCh
-	if ok {
+	if ok && err != nil {
 		logrus.WithError(err).Error("[service][replay][StreamReplay][dbHandler]")
 		return apperror.InternalServerError(apperror.AppErrorOpt{
 			Message: fmt.Sprintf("[service][replay][StreamReplay][dbHandler] error: %v", err),

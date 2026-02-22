@@ -11,5 +11,5 @@ type Write interface {
 
 type Replay interface {
 	CreateStream(ctx context.Context, req entity.CreateStreamReq) (entity.CreateStreamRes, error)
-	StreamReplay(ctx context.Context, ch chan []byte, channel string) error
+	StreamReplay(ctx context.Context, ch chan []byte, channel, token string) error
 }
