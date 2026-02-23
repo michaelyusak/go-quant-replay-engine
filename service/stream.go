@@ -156,6 +156,8 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 }
 
 func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, token string) error {
+	defer close(ch)
+
 	s.mu.Lock()
 	streamHandler, ok := s.chMap[channel]
 	s.mu.Unlock()
@@ -235,6 +237,7 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -242,32 +245,40 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 
 	loop:
 		for {
-			<-pullCh
-
-			candles, err := dbHandler(cursor)
-			if err != nil {
-				doneCh <- true
-				errCh <- fmt.Errorf("[service][replay][StreamReplay][dbHandler] error: %w", err)
-				break loop
-			}
-
-			lastUnix := candles[len(candles)-1].Epoch
-			cursor = time.Unix(lastUnix, 0)
-
-			candlesBytes := [][]byte{}
-
-			for _, candle := range candles {
-				candleBytes, err := json.Marshal(candle)
+			select {
+			case <-pullCh:
+				candles, err := dbHandler(cursor)
 				if err != nil {
 					doneCh <- true
-					errCh <- fmt.Errorf("[service][replay][StreamReplay][json.Marshal(candle)] error: %w", err)
+					errCh <- fmt.Errorf("[service][replay][StreamReplay][dbHandler] error: %w", err)
 					break loop
 				}
 
-				candlesBytes = append(candlesBytes, candleBytes)
-			}
+				candlesBytes := [][]byte{}
+				for _, candle := range candles {
+					candleBytes, err := json.Marshal(candle)
+					if err != nil {
+						doneCh <- true
+						errCh <- fmt.Errorf("[service][replay][StreamReplay][json.Marshal(candle)] error: %w", err)
+						break loop
+					}
 
-			candlesBytesCh <- candlesBytes
+					candlesBytes = append(candlesBytes, candleBytes)
+				}
+
+				candlesBytesCh <- candlesBytes
+
+				if len(candles) < limit {
+					doneCh <- true
+					break loop
+				}
+
+				lastUnix := candles[len(candles)-1].Epoch
+				cursor = time.Unix(lastUnix, 0)
+			case <-ctx.Done():
+				doneCh <- true
+				break loop
+			}
 		}
 	}()
 
@@ -275,13 +286,18 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 
 	err, ok := <-errCh
 	if ok && err != nil {
-		logrus.WithError(err).Error("[service][replay][StreamReplay][dbHandler]")
+		logrus.
+			WithError(err).
+			WithField("channel", channel).
+			Error("[service][replay][StreamReplay]")
+
 		return apperror.InternalServerError(apperror.AppErrorOpt{
-			Message: fmt.Sprintf("[service][replay][StreamReplay][dbHandler] error: %v", err),
+			Message: fmt.Sprintf("[service][replay][StreamReplay] error: %v", err),
 		})
 	}
 
-	logrus.Info("[service][replay][StreamReplay] done")
+	logrus.
+		WithField("channel", channel).Info("[service][replay][StreamReplay] done")
 
 	return nil
 }

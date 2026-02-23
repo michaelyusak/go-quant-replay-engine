@@ -66,11 +66,11 @@ func (h *Replay) Start(ctx *gin.Context) {
 	authDataCh := make(chan json.RawMessage)
 	authenticatedCh := make(chan bool)
 	dataCh := make(chan []byte)
-	defer close(dataCh)
 
 	var wg sync.WaitGroup
 
 	wg.Add(1)
+	// main
 	go func() {
 		defer wg.Done()
 
@@ -102,6 +102,7 @@ func (h *Replay) Start(ctx *gin.Context) {
 	}()
 
 	wg.Add(1)
+	// writer
 	go func() {
 		defer wg.Done()
 
@@ -111,9 +112,7 @@ func (h *Replay) Start(ctx *gin.Context) {
 			case <-c.Done():
 				logrus.Warn("[handler][Replay][StreamReplay][Write] closing loop")
 				break loop
-			default:
-				data := <-dataCh
-
+			case data := <-dataCh:
 				err := conn.WriteMessage(websocket.TextMessage, data)
 				if err != nil {
 					if errors.Is(err, websocket.ErrCloseSent) {
@@ -130,6 +129,7 @@ func (h *Replay) Start(ctx *gin.Context) {
 	}()
 
 	wg.Add(1)
+	// listener
 	go func() {
 		defer wg.Done()
 
