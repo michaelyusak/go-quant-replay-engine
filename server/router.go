@@ -110,6 +110,6 @@ func writeRouting(router *gin.Engine, handler *handler.Write) {
 }
 
 func replayRouting(router *gin.Engine, handler *handler.Replay) {
-	router.POST("/v1/replay/create", handler.CreateStream)
-	router.GET("/v1/replay/stream", handler.StreamReplay)
+	router.POST("/v1/stream/create", handler.Create)
+	router.GET("/v1/stream/start", handler.Start)
 }

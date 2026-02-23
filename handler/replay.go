@@ -30,7 +30,7 @@ func NewReplay(
 	}
 }
 
-func (h *Replay) CreateStream(ctx *gin.Context) {
+func (h *Replay) Create(ctx *gin.Context) {
 	ctx.Header("Content-Type", "application/json")
 
 	var req entity.CreateStreamReq
@@ -52,7 +52,7 @@ func (h *Replay) CreateStream(ctx *gin.Context) {
 	hHelper.ResponseOK(ctx, res)
 }
 
-func (h *Replay) StreamReplay(ctx *gin.Context) {
+func (h *Replay) Start(ctx *gin.Context) {
 	conn, err := h.upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
 		ctx.Error(err)
