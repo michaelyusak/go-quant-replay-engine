@@ -32,6 +32,8 @@ type replay struct {
 	candles1mRepo repository.Candles1m
 	chMap         map[string]streamHandler
 
+	replayConfiguration entity.ReplayConfiguration
+
 	chTtl time.Duration
 
 	tokenLen int
@@ -83,54 +85,29 @@ func (s *replay) cleanStreamHandler() {
 	s.chMap = newMap
 }
 
-func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (entity.CreateStreamRes, error) {
-	startTime := time.UnixMilli(req.StartTimeUnixMilli)
-	endTime := time.UnixMilli(req.EndTimeUnixMilli)
+func (s *replay) GetConfiguration(ctx context.Context) entity.ReplayConfiguration {
+	return s.replayConfiguration
+}
 
-	var candlesCount int64
+func (s *replay) UpdateConfiguration(ctx context.Context, newConf entity.ReplayConfiguration) {
+	s.replayConfiguration = newConf
+}
+
+func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (entity.CreateStreamRes, error) {
 	var interval entity.CandleInterval
 
-	switch req.Interval {
-	case string(entity.CandleInterval1m):
-		c, err := s.candles1mRepo.CountCandles1m(ctx, req.Exchange, req.Symbol, startTime, endTime)
-		if err != nil {
-			logrus.
-				WithError(err).
-				WithField("start", time.UnixMilli(req.StartTimeUnixMilli).String()).
-				WithField("end", time.UnixMilli(req.StartTimeUnixMilli).String()).
-				WithField("symbol", req.Symbol).
-				WithField("interval", req.Interval).
-				Error("[service][stream][CreateStream][candles1mRepo.CountCandles1m]")
-
-			return entity.CreateStreamRes{}, apperror.InternalServerError(apperror.AppErrorOpt{
-				Code:    http.StatusUnprocessableEntity,
-				Message: fmt.Sprintf("[service][stream][CreateStream][candles1mRepo.CountCandles1m] error: %v", err),
-			})
-		}
-
-		candlesCount = c
+	switch time.Duration(req.CandleSize) {
+	case time.Minute:
 		interval = entity.CandleInterval1m
 	default:
-		logrus.
-			WithField("start", time.UnixMilli(req.StartTimeUnixMilli).String()).
-			WithField("end", time.UnixMilli(req.StartTimeUnixMilli).String()).
-			WithField("symbol", req.Symbol).
-			WithField("interval", req.Interval).
-			Error("[service][stream][CreateStream] interval not implemented")
-
 		return entity.CreateStreamRes{}, apperror.BadRequestError(apperror.AppErrorOpt{
 			Code:            http.StatusUnprocessableEntity,
-			ResponseMessage: fmt.Sprintf("the interval '%s' is not supported", req.Interval),
-			Message:         fmt.Sprintf("[service][stream][CreateStream] the interval '%s' is not supported", req.Interval),
+			ResponseMessage: fmt.Sprintf("the interval '%s' is not supported", time.Duration(req.CandleSize).String()),
+			Message:         fmt.Sprintf("[service][stream][CreateStream] the interval '%s' is not supported", time.Duration(req.CandleSize).String()),
 		})
 	}
 
-	playbackSpeed := float32(1.0)
-	if req.PlaybackSpeed > 0 {
-		playbackSpeed = req.PlaybackSpeed
-	}
-
-	channelHash := helper.HashSHA512(fmt.Sprintf("%s%s%s%v", req.Exchange, req.Symbol, req.Interval, time.Now().UnixMilli()))
+	channelHash := helper.HashSHA512(fmt.Sprintf("%s%v", time.Duration(req.CandleSize).String(), time.Now().UnixMilli()))
 	channel := fmt.Sprintf("ch:%s", channelHash)
 
 	token := common.CreateRandomString(s.tokenLen)
@@ -138,25 +115,31 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 	s.mu.Lock()
 	s.chMap[channel] = streamHandler{
 		interval:      interval,
-		exchange:      req.Exchange,
-		symbol:        req.Symbol,
-		playbackSpeed: playbackSpeed,
-		startTime:     startTime,
-		endTime:       endTime,
+		exchange:      s.replayConfiguration.Exchange,
+		symbol:        s.replayConfiguration.Symbol,
+		playbackSpeed: s.replayConfiguration.PlaybackSpeed,
+		startTime:     time.UnixMilli(s.replayConfiguration.StartTimeUnixMilli),
+		endTime:       time.UnixMilli(s.replayConfiguration.EndTimeUnixMilli),
 		token:         token,
 
 		cleanedAt: time.Now().Add(s.chTtl),
 	}
 	s.mu.Unlock()
 
+	fmt.Println("test", fmt.Sprintf("%+v", s.chMap))
+
 	return entity.CreateStreamRes{
-		CandlesCount: candlesCount,
-		Channel:      channel,
+		Channel: channel,
+		Token:   token,
 	}, nil
 }
 
 func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, token string) error {
 	defer close(ch)
+
+	logrus.
+		WithField("channel", channel).
+		Info("[service][replay][StreamReplay] starting stream...")
 
 	s.mu.Lock()
 	streamHandler, ok := s.chMap[channel]
@@ -171,6 +154,10 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 		})
 	}
 
+	logrus.
+		WithField("handler", fmt.Sprintf("%+v", streamHandler)).
+		Info("[service][replay][StreamReplay] found handler")
+
 	if streamHandler.token != token {
 		logrus.Warn("[service][replay][StreamCandles] invalid token")
 
@@ -178,6 +165,8 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 			Message: "[service][replay][StreamCandles] invalid token",
 		})
 	}
+
+	logrus.Info("[service][replay][StreamCandles] stream authenticated")
 
 	limit := 5000
 	var dbHandler func(cursor time.Time) ([]entity.Candle, error)
@@ -194,9 +183,14 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 			return candles, nil
 		}
 		interval = time.Minute
+	default:
+		return apperror.BadRequestError(apperror.AppErrorOpt{
+			Code:            http.StatusBadRequest,
+			ResponseMessage: fmt.Sprintf("interval of %s is unavailable", streamHandler.interval),
+		})
 	}
 
-	candlesBytesCh := make(chan [][]byte)
+	candlesBytesCh := make(chan [][]byte, limit)
 	pullCh := make(chan bool)
 	doneCh := make(chan bool)
 	errCh := make(chan error)
@@ -216,19 +210,34 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 
 		pullCh <- true
 
+		logrus.Info("[service][replay][StreamCandles][emitter] ready to emit")
+
 	loop:
 		for {
+			pullSignalSent := false
+
 			select {
 			case <-doneCh:
 				break loop
 			case candlesBytes := <-candlesBytesCh:
 				candlesCount := len(candlesBytes)
 
+				logrus.WithField("candles_count", candlesCount).Info("[service][replay][StreamCandles][emitter] emiting candles...")
+
 				for i, candleBytes := range candlesBytes {
+					if len(candleBytes) == 0 {
+						continue
+					}
+
 					ch <- candleBytes
 
-					if i > candlesCount/3 {
+					if !pullSignalSent && i > candlesCount/2 {
+						logrus.
+							WithField("candles_count", candlesCount).
+							WithField("i", i).
+							Info("[service][replay][StreamCandles][emitter] sending pull signal")
 						pullCh <- true
+						pullSignalSent = true
 					}
 
 					time.Sleep(latency)
@@ -247,15 +256,20 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 		for {
 			select {
 			case <-pullCh:
+				logrus.
+					Info("[service][replay][StreamReplay][puller] got pull signal. pulling candles...")
+
 				candles, err := dbHandler(cursor)
 				if err != nil {
 					doneCh <- true
-					errCh <- fmt.Errorf("[service][replay][StreamReplay][dbHandler] error: %w", err)
+					errCh <- fmt.Errorf("[service][replay][StreamReplay][puller] dbHandler error: %w", err)
 					break loop
 				}
 
 				candlesBytes := [][]byte{}
 				for _, candle := range candles {
+					candle.Symbol = fmt.Sprintf("%s:%s", candle.Exchange, candle.Pair)
+
 					candleBytes, err := json.Marshal(candle)
 					if err != nil {
 						doneCh <- true

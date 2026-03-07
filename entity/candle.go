@@ -8,6 +8,7 @@ type Candle struct {
 	Epoch    int64           `json:"epoch"`
 	Pair     string          `json:"pair"`
 	Exchange string          `json:"exchange"`
+	Symbol   string          `json:"symbol"`
 	Open     decimal.Decimal `json:"open"`
 	High     decimal.Decimal `json:"high"`
 	Low      decimal.Decimal `json:"low"`

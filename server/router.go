@@ -83,6 +83,7 @@ func createRouter(opts routerOpts, allowedOrigins []string) *gin.Engine {
 	corsRouting(router, corsConfig, allowedOrigins)
 	commonRouting(router, opts.handler.common)
 	writeRouting(router, opts.handler.write)
+	replayRouting(router, opts.handler.replay)
 
 	return router
 }
@@ -112,4 +113,7 @@ func writeRouting(router *gin.Engine, handler *handler.Write) {
 func replayRouting(router *gin.Engine, handler *handler.Replay) {
 	router.POST("/v1/stream/create", handler.Create)
 	router.GET("/v1/stream/start", handler.Start)
+
+	router.GET("/v1/stream/config", handler.GetConfig)
+	router.PUT("/v1/stream/config", handler.UpdateConfig)
 }

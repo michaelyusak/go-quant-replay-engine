@@ -69,18 +69,34 @@ func (r *candles1m) CountCandles1m(ctx context.Context, exchange, symbol string,
 }
 
 func (r *candles1m) GetCandles(ctx context.Context, exchange, symbol string, cursor, end time.Time, limit int) ([]entity.Candle, error) {
-	q := `
-		SELECT timestamp, open, high, low, close, volume 
-		FROM candles_1m
-		WHERE exchange = $1
-			AND symbol = $2
-			AND timestamp
-				BETWEEN $3 AND $4
-		LIMIT $5
-		ORDER BY timestamp ASC
-	`
+	var sb strings.Builder
+	sb.WriteString("SELECT timestamp, open, high, low, close, volume FROM candles_1m WHERE ")
 
-	rows, err := r.db.QueryContext(ctx, q, exchange, symbol, cursor, end, limit)
+	args := []any{}
+
+	if exchange != "" {
+		args = append(args, exchange)
+		fmt.Fprintf(&sb, "exchange = $%d AND ", len(args))
+	}
+
+	if symbol != "" {
+		args = append(args, symbol)
+		fmt.Fprintf(&sb, "symbol = $%d AND ", len(args))
+	}
+
+	if cursor.Unix() > 0 && end.Unix() > 0 {
+		args = append(args, cursor, end)
+		fmt.Fprintf(&sb, "timestamp BETWEEN $%d AND $%d ", len(args)-1, len(args))
+	}
+
+	sb.WriteString("ORDER BY timestamp ASC ")
+
+	if limit > 0 {
+		args = append(args, limit)
+		fmt.Fprintf(&sb, "LIMIT $%d", len(args))
+	}
+
+	rows, err := r.db.QueryContext(ctx, sb.String(), args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []entity.Candle{}, nil

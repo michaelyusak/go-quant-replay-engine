@@ -161,6 +161,7 @@ func (h *Replay) Start(ctx *gin.Context) {
 					if err != nil {
 						logrus.
 							WithError(err).
+							WithField("raw", string(message)).
 							Warn("[handler][Replay][StreamReplay][Read][json.Unmarshal(message, &msg)]")
 						continue
 					}
@@ -179,8 +180,28 @@ func (h *Replay) Start(ctx *gin.Context) {
 
 	wg.Wait()
 
-	err = common.CloseConn(conn)
+	common.CloseConn(conn)
+}
+
+func (h *Replay) GetConfig(ctx *gin.Context) {
+	ctx.Header("Content-Type", "application/json")
+
+	conf := h.replayService.GetConfiguration(ctx.Request.Context())
+
+	hHelper.ResponseOK(ctx, conf)
+}
+
+func (h *Replay) UpdateConfig(ctx *gin.Context) {
+	ctx.Header("Content-Type", "application/json")
+
+	var req entity.ReplayConfiguration
+	err := ctx.ShouldBindJSON(&req)
 	if err != nil {
 		ctx.Error(err)
+		return
 	}
+
+	h.replayService.UpdateConfiguration(ctx.Request.Context(), req)
+
+	hHelper.ResponseOK(ctx, nil)
 }
