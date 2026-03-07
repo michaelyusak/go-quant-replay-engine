@@ -154,10 +154,6 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 		})
 	}
 
-	logrus.
-		WithField("handler", fmt.Sprintf("%+v", streamHandler)).
-		Info("[service][replay][StreamReplay] found handler")
-
 	if streamHandler.token != token {
 		logrus.Warn("[service][replay][StreamCandles] invalid token")
 
@@ -257,6 +253,7 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 			select {
 			case <-pullCh:
 				logrus.
+					WithField("cursor", cursor.String()).
 					Info("[service][replay][StreamReplay][puller] got pull signal. pulling candles...")
 
 				candles, err := dbHandler(cursor)
