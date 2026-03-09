@@ -14,4 +14,5 @@ type Replay interface {
 	StreamReplay(ctx context.Context, ch chan []byte, channel, token string) error
 	GetConfiguration(ctx context.Context) entity.ReplayConfiguration
 	UpdateConfiguration(ctx context.Context, newConf entity.ReplayConfiguration)
+	GetListenedSymbols() []string
 }

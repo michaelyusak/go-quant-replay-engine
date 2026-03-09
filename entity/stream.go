@@ -7,11 +7,10 @@ import (
 )
 
 type ReplayConfiguration struct {
-	Exchange           string  `json:"exchange" form:"exchange"`
-	Symbol             string  `json:"symbol" form:"symbol"`
-	PlaybackSpeed      float32 `json:"playback_speed"`
-	StartTimeUnixMilli int64   `json:"start_time_unix_milli" form:"start_time_unix_milli"`
-	EndTimeUnixMilli   int64   `json:"end_time_unix_milli" form:"end_time_unix_milli"`
+	Symbols            []string `json:"symbols" form:"symbols"`
+	PlaybackSpeed      float32  `json:"playback_speed"`
+	StartTimeUnixMilli int64    `json:"start_time_unix_milli" form:"start_time_unix_milli"`
+	EndTimeUnixMilli   int64    `json:"end_time_unix_milli" form:"end_time_unix_milli"`
 }
 
 type CreateStreamReq struct {

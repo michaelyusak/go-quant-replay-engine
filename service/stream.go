@@ -18,8 +18,7 @@ import (
 
 type streamHandler struct {
 	interval      entity.CandleInterval
-	exchange      string
-	symbol        string
+	symbols       []string
 	playbackSpeed float32
 	startTime     time.Time
 	endTime       time.Time
@@ -115,8 +114,7 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 	s.mu.Lock()
 	s.chMap[channel] = streamHandler{
 		interval:      interval,
-		exchange:      s.replayConfiguration.Exchange,
-		symbol:        s.replayConfiguration.Symbol,
+		symbols:       s.replayConfiguration.Symbols,
 		playbackSpeed: s.replayConfiguration.PlaybackSpeed,
 		startTime:     time.UnixMilli(s.replayConfiguration.StartTimeUnixMilli),
 		endTime:       time.UnixMilli(s.replayConfiguration.EndTimeUnixMilli),
@@ -171,7 +169,7 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 	switch streamHandler.interval {
 	case entity.CandleInterval1m:
 		dbHandler = func(cursor time.Time) ([]entity.Candle, error) {
-			candles, err := s.candles1mRepo.GetCandles(ctx, streamHandler.exchange, streamHandler.symbol, cursor, streamHandler.endTime, limit)
+			candles, err := s.candles1mRepo.GetCandles(ctx, streamHandler.symbols, cursor, streamHandler.endTime, limit)
 			if err != nil {
 				return []entity.Candle{}, err
 			}
@@ -311,4 +309,8 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 		WithField("channel", channel).Info("[service][replay][StreamReplay] done")
 
 	return nil
+}
+
+func (s *replay) GetListenedSymbols() []string {
+	return s.replayConfiguration.Symbols
 }

@@ -205,3 +205,11 @@ func (h *Replay) UpdateConfig(ctx *gin.Context) {
 
 	hHelper.ResponseOK(ctx, nil)
 }
+
+func (h *Replay) GetListenedSymbols(ctx *gin.Context) {
+	ctx.Header("Content-Type", "application/json")
+
+	symbols := h.replayService.GetListenedSymbols()
+
+	hHelper.ResponseOK(ctx, symbols)
+}

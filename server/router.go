@@ -116,4 +116,6 @@ func replayRouting(router *gin.Engine, handler *handler.Replay) {
 
 	router.GET("/v1/stream/config", handler.GetConfig)
 	router.PUT("/v1/stream/config", handler.UpdateConfig)
+
+	router.GET("/v1/stream/listened-symbol", handler.GetListenedSymbols)
 }

@@ -68,20 +68,33 @@ func (r *candles1m) CountCandles1m(ctx context.Context, exchange, symbol string,
 	return count, nil
 }
 
-func (r *candles1m) GetCandles(ctx context.Context, exchange, symbol string, cursor, end time.Time, limit int) ([]entity.Candle, error) {
+func (r *candles1m) GetCandles(ctx context.Context, symbols []string, cursor, end time.Time, limit int) ([]entity.Candle, error) {
 	var sb strings.Builder
-	sb.WriteString("SELECT timestamp, open, high, low, close, volume FROM candles_1m WHERE ")
+	sb.WriteString("SELECT timestamp, open, high, low, close, volume, exchange, symbol FROM candles_1m WHERE ")
 
 	args := []any{}
 
-	if exchange != "" {
-		args = append(args, exchange)
-		fmt.Fprintf(&sb, "exchange = $%d AND ", len(args))
-	}
+	if len(symbols) > 0 {
+		sb.WriteString("(")
 
-	if symbol != "" {
-		args = append(args, symbol)
-		fmt.Fprintf(&sb, "symbol = $%d AND ", len(args))
+		for i, symbol := range symbols {
+			arr := strings.Split(symbol, ":")
+			if len(arr) != 2 {
+				continue
+			}
+
+			exchange := arr[0]
+			pair := arr[1]
+
+			args = append(args, exchange, pair)
+			fmt.Fprintf(&sb, "(exchange = $%d AND symbol = $%d) ", len(args)-1, len(args))
+
+			if i < len(symbols)-1 {
+				sb.WriteString("OR ")
+			} else {
+				sb.WriteString(") AND ")
+			}
+		}
 	}
 
 	if cursor.Unix() > 0 && end.Unix() > 0 {
@@ -119,14 +132,15 @@ func (r *candles1m) GetCandles(ctx context.Context, exchange, symbol string, cur
 			&candle.Low,
 			&candle.Close,
 			&candle.Volume,
+			&candle.Exchange,
+			&candle.Pair,
 		)
 		if err != nil {
 			return []entity.Candle{}, fmt.Errorf("[repository][quest][candles1m][GetCandles][rows.Scan] error: %w", err)
 		}
 
 		candle.Epoch = candleTs.Unix()
-		candle.Exchange = exchange
-		candle.Pair = symbol
+		candle.Symbol = fmt.Sprintf("%s:%s", candle.Exchange, candle.Pair)
 
 		candles = append(candles, candle)
 	}
