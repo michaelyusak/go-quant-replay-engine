@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"michaelyusak/go-quant-replay-engine.git/config"
-	"michaelyusak/go-quant-replay-engine.git/log"
 
+	hHelper "github.com/michaelyusak/go-helper/helper"
 	"github.com/sirupsen/logrus"
 )
 
@@ -24,7 +24,7 @@ func Init() {
 		logrus.Panic(err)
 	}
 
-	err = log.SetupLogger(conf.Log.Level, conf.Log.Dir)
+	err = hHelper.SetupLogrus(conf.Log.Level, conf.Log.Dir)
 	if err != nil {
 		logrus.Panic(err)
 	}

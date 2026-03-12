@@ -7,7 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-resty/resty/v2 v2.17.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/michaelyusak/go-helper v1.9.4
+	github.com/michaelyusak/go-helper v1.9.5
 	github.com/shopspring/decimal v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 )

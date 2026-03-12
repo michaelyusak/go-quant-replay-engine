@@ -25,11 +25,6 @@ type ServiceConfig struct {
 	Replay         ReplayConfig     `json:"replay"`
 }
 
-type LogConfig struct {
-	Level string `json:"level"`
-	Dir   string `json:"dir"`
-}
-
 type CorsConfig struct {
 	AllowedOrigins []string `json:"allowed_origins"`
 }
@@ -43,10 +38,10 @@ type AdapterConfig struct {
 }
 
 type AppConfig struct {
-	Service ServiceConfig `json:"service"`
-	Log     LogConfig     `json:"log"`
-	Cors    CorsConfig    `json:"cors"`
-	Adapter AdapterConfig `json:"adapter"`
+	Service ServiceConfig     `json:"service"`
+	Log     hEntity.LogConfig `json:"log"`
+	Cors    CorsConfig        `json:"cors"`
+	Adapter AdapterConfig     `json:"adapter"`
 }
 
 func Init() (AppConfig, error) {
