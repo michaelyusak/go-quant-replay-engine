@@ -42,10 +42,13 @@ type replay struct {
 
 func NewReplay(
 	candles1mRepo repository.Candles1m,
+	defaultConfig entity.ReplayConfiguration,
 ) *replay {
 	s := replay{
 		candles1mRepo: candles1mRepo,
 		chMap:         map[string]streamHandler{},
+
+		replayConfiguration: defaultConfig,
 
 		chTtl: 24 * time.Hour,
 

@@ -45,7 +45,7 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	}
 
 	writeService := service.NewWrite(candles1mRepo, binanceHttpAdapter)
-	replayService := service.NewReplay(candles1mRepo)
+	replayService := service.NewReplay(candles1mRepo, config.Service.Replay.Stream.Default)
 
 	commonHandler := hHandler.NewCommon(&APP_HEALTHY)
 	writeHandler := handler.NewWrite(writeService)

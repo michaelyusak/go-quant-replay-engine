@@ -4,14 +4,25 @@ import (
 	"fmt"
 	"os"
 
+	"michaelyusak/go-quant-replay-engine.git/entity"
+
 	hConfig "github.com/michaelyusak/go-helper/config"
 	hEntity "github.com/michaelyusak/go-helper/entity"
 )
+
+type StreamReplayConfig struct {
+	Default entity.ReplayConfiguration `json:"default"`
+}
+
+type ReplayConfig struct {
+	Stream StreamReplayConfig `json:"stream"`
+}
 
 type ServiceConfig struct {
 	Port           string           `json:"port"`
 	GracefulPeriod hEntity.Duration `json:"graceful_period"`
 	Db             hEntity.DBConfig `json:"db"`
+	Replay         ReplayConfig     `json:"replay"`
 }
 
 type LogConfig struct {
