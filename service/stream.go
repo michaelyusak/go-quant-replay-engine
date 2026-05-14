@@ -127,8 +127,6 @@ func (s *replay) CreateStream(ctx context.Context, req entity.CreateStreamReq) (
 	}
 	s.mu.Unlock()
 
-	fmt.Println("test", fmt.Sprintf("%+v", s.chMap))
-
 	return entity.CreateStreamRes{
 		Channel: channel,
 		Token:   token,
