@@ -22,7 +22,7 @@ func NewCandles1m(db *sql.DB) *candles1m {
 
 func (r *candles1m) InsertMany(ctx context.Context, candles []entity.Candle) error {
 	var sb strings.Builder
-	sb.WriteString("INSERT INTO candles_1m (timestamp, exchange, symbol, open, high, low, close, volume) VALUES ")
+	sb.WriteString("INSERT INTO candles_1m (timestamp, exchange, symbol, open, high, low, close, volume, buy_volume, sell_volume) VALUES ")
 
 	vals := make([]any, 0, len(candles)*8)
 	for i, candle := range candles {
@@ -30,15 +30,17 @@ func (r *candles1m) InsertMany(ctx context.Context, candles []entity.Candle) err
 			sb.WriteString(",")
 		}
 
-		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)", i*8+1, i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8)
+		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)", i*10+1, i*10+2, i*10+3, i*10+4, i*10+5, i*10+6, i*10+7, i*10+8, i*10+9, i*10+10)
 
 		openFl, _ := candle.Open.Float64()
 		highFl, _ := candle.High.Float64()
 		lowFl, _ := candle.Low.Float64()
 		closeFl, _ := candle.Close.Float64()
-		volFl, _ := candle.Volume.Float64()
+		volTotalFl, _ := candle.Volume.Total.Float64()
+		volBuyFl, _ := candle.Volume.Buy.Float64()
+		volSellFl, _ := candle.Volume.Sell.Float64()
 
-		vals = append(vals, time.Unix(candle.Epoch, 0), candle.Exchange, candle.Pair, openFl, highFl, lowFl, closeFl, volFl)
+		vals = append(vals, time.Unix(candle.Epoch, 0), candle.Exchange, candle.Pair, openFl, highFl, lowFl, closeFl, volTotalFl, volBuyFl, volSellFl)
 	}
 
 	_, err := r.db.ExecContext(ctx, sb.String(), vals...)

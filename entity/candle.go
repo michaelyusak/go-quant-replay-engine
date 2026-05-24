@@ -13,10 +13,16 @@ type Candle struct {
 	High     decimal.Decimal `json:"high"`
 	Low      decimal.Decimal `json:"low"`
 	Close    decimal.Decimal `json:"close"`
-	Volume   decimal.Decimal `json:"volume"`
+	Volume   CandleVolume    `json:"volume"`
 
 	//internal
 	Dirty bool `json:"-"`
+}
+
+type CandleVolume struct {
+	Total decimal.Decimal `json:"total"`
+	Buy   decimal.Decimal `json:"buy"`
+	Sell  decimal.Decimal `json:"sell"`
 }
 
 type CandleInterval string

@@ -64,8 +64,9 @@ func (a *Adapter) normalizedCandle(raw [][]any, symbol string) []entity.Candle {
 		highStr, ok2 := data[2].(string)
 		lowStr, ok3 := data[3].(string)
 		closeStr, ok4 := data[4].(string)
-		volStr, ok5 := data[5].(string)
-		if !(ok1 && ok2 && ok3 && ok4 && ok5) {
+		volTotalStr, ok5 := data[5].(string)
+		volBuyStr, ok6 := data[9].(string)
+		if !(ok1 && ok2 && ok3 && ok4 && ok5 && ok6) {
 			logrus.
 				WithField("row", i).
 				WithField("data", data).
@@ -105,14 +106,24 @@ func (a *Adapter) normalizedCandle(raw [][]any, symbol string) []entity.Candle {
 				Warn("[adapter][BinanceHttp][NormalizedCandle] invalid close decimal")
 			continue
 		}
-		volDec, err := decimal.NewFromString(volStr)
+		volTotalDec, err := decimal.NewFromString(volTotalStr)
 		if err != nil {
 			logrus.
 				WithField("row", i).
-				WithField("volume", volStr).
-				Warn("[adapter][BinanceHttp][NormalizedCandle] invalid volume decimal")
+				WithField("volume_total", volTotalStr).
+				Warn("[adapter][BinanceHttp][NormalizedCandle] invalid total volume decimal")
 			continue
 		}
+		volBuyDec, err := decimal.NewFromString(volBuyStr)
+		if err != nil {
+			logrus.
+				WithField("row", i).
+				WithField("volume_buy", volTotalStr).
+				Warn("[adapter][BinanceHttp][NormalizedCandle] invalid buy volume decimal")
+			continue
+		}
+
+		volSellDec := volTotalDec.Sub(volBuyDec)
 
 		candle := entity.Candle{
 			Epoch:    epochMs / 1000,
@@ -122,7 +133,11 @@ func (a *Adapter) normalizedCandle(raw [][]any, symbol string) []entity.Candle {
 			High:     highDec,
 			Low:      lowDec,
 			Close:    closeDec,
-			Volume:   volDec,
+			Volume: entity.CandleVolume{
+				Total: volTotalDec,
+				Buy:   volBuyDec,
+				Sell:  volSellDec,
+			},
 		}
 
 		normalized = append(normalized, candle)
