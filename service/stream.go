@@ -187,8 +187,8 @@ func (s *replay) StreamReplay(ctx context.Context, ch chan []byte, channel, toke
 
 	candlesBytesCh := make(chan [][]byte, limit)
 	pullCh := make(chan bool)
-	doneCh := make(chan bool)
-	errCh := make(chan error)
+	doneCh := make(chan bool, 5)
+	errCh := make(chan error, 5)
 	defer func() {
 		close(candlesBytesCh)
 		close(doneCh)

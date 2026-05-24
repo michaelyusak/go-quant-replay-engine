@@ -72,7 +72,7 @@ func (r *candles1m) CountCandles1m(ctx context.Context, exchange, symbol string,
 
 func (r *candles1m) GetCandles(ctx context.Context, symbols []string, cursor, end time.Time, limit int) ([]entity.Candle, error) {
 	var sb strings.Builder
-	sb.WriteString("SELECT timestamp, open, high, low, close, volume, exchange, symbol FROM candles_1m WHERE ")
+	sb.WriteString("SELECT timestamp, open, high, low, close, volume, buy_volume, sell_volume, exchange, symbol FROM candles_1m WHERE ")
 
 	args := []any{}
 
@@ -133,7 +133,9 @@ func (r *candles1m) GetCandles(ctx context.Context, symbols []string, cursor, en
 			&candle.High,
 			&candle.Low,
 			&candle.Close,
-			&candle.Volume,
+			&candle.Volume.Total,
+			&candle.Volume.Buy,
+			&candle.Volume.Sell,
 			&candle.Exchange,
 			&candle.Pair,
 		)
